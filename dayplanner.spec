@@ -15,10 +15,12 @@ state
         a title String
         a duration Number // in half-hour units, so 3 is 90 mins
         an optional startTime Number // in half-hour slots from midnight, so 14 is 7:00am
+        an optional importanceWeight Number // not important 0 - 5 very important
 
     a set of Assignment with
         an Activity
         an startTime Number
+        
 
     invariants
         every assignment's activity is in the activity set
@@ -34,17 +36,21 @@ actions
     removeActivity(activity: Activity)
         requires activity exists
         effect removes activity
+    
+    getImportantActivites(): (Assignment[])
+        requires assignment exists
+        effect returns all assignments with importance 5
 
     assignActivity(activity: Activity, startTime: Number)
         requires activity exists and startTime is between 0 and 47
-        effect adds fresh assignment for activity and startTime
+        effect adds fresh assignment for activity and startTime and importanceWeight
 
     unassignActivity(activity: Activity)
         requires assignment for activity exists
         effect removes assignment for activity
 
     async assignActivities(llm: GeminiLLM)
-        effect uses llm to assign all unassigned activities    
+        effect uses llm to assign all unassigned activities 
 
 notes
     This is a very rudimentary concept to demonstrate how to use an LLM.

@@ -1,182 +1,343 @@
-# DayPlanner 
-A simple day planner. This implementation focuses on the core concept of organizing activities for a single day with both manual and AI-assisted scheduling.
+# Assignment 3
 
-## Concept: DayPlanner
+# Generator
 
-**Purpose**: Help you organize activities for a single day  
-**Principle**: You can add activities one at a time, assign them to times, and then observe the completed schedule
+## Spec
 
-### Core State
-- **Activities**: Set of activities with title, duration, and optional startTime
-- **Assignments**: Set of activity-to-time assignments
-- **Time System**: All times in half-hour slots starting at midnight (0 = 12:00 AM, 13 = 6:30 AM)
+concept Generator
 
-### Core Actions
-- `addActivity(title: string, duration: number): Activity`
-- `removeActivity(activity: Activity)`
-- `assignActivity(activity: Activity, startTime: number)`
-- `unassignActivity(activity: Activity)`
-- `requestAssignmentsFromLLM()` - AI-assisted scheduling with hardwired preferences
 
-## Prerequisites
+purpose: an interactive answer that can be generated and modified by an LLM and modified, accepted, and copied by a user through feedback
 
-- **Node.js** (version 14 or higher)
-- **TypeScript** (will be installed automatically)
-- **Google Gemini API Key** (free at [Google AI Studio](https://makersuite.google.com/app/apikey))
+principle: after the LLM generates answertype to the question, if there is user feedback, it will regenerate its output. Otherwise, the user can edit it or copy it for their use.
 
-## Quick Setup
+state 
 
-### 0. Clone the repo locally and navigate to it
-```cd intro-gemini-schedule```
+a question String
+a draft String
+an accepted Flag
+a set of feedbackHistory String
 
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Add Your API Key
-
-**Why use a template?** The `config.json` file contains your private API key and should never be committed to version control. The template approach lets you:
-- Keep the template file in git (safe to share)
-- Create your own `config.json` locally (keeps your API key private)
-- Easily set up the project on any machine
-
-**Step 1:** Copy the template file:
-```bash
-cp config.json.template config.json
-```
-
-**Step 2:** Edit `config.json` and add your API key:
-```json
-{
-  "apiKey": "YOUR_GEMINI_API_KEY_HERE"
-}
-```
-
-**To get your API key:**
-1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Sign in with your Google account
-3. Click "Create API Key"
-4. Copy the key and paste it into `config.json` (replacing `YOUR_GEMINI_API_KEY_HERE`)
-
-### 3. Run the Application
-
-**Run all test cases:**
-```bash
-npm start
-```
-
-**Run specific test cases:**
-```bash
-npm run manual    # Manual scheduling only
-npm run llm       # LLM-assisted scheduling only
-npm run mixed     # Mixed manual + LLM scheduling
-```
-
-## File Structure
+actions
 
 ```
-dayplanner/
-├── package.json              # Dependencies and scripts
-├── tsconfig.json             # TypeScript configuration
-├── config.json               # Your Gemini API key
-├── dayplanner-types.ts       # Core type definitions
-├── dayplanner.ts             # DayPlanner class implementation
-├── dayplanner-llm.ts         # LLM integration
-├── dayplanner-tests.ts       # Test cases and examples
-├── dist/                     # Compiled JavaScript output
-└── README.md                 # This file
-```
+updateInput(files: File[]): 
+effect: updates files used to generate draft
 
-## Test Cases
+async generate(question: String, llm: LLM, files: File[]): (draft: String)
 
-The application includes three comprehensive test cases:
+requires question is a valid question
+effects generate a draft to the question using the files provided with accepted FALSE 
 
-### 1. Manual Scheduling
-Demonstrates adding activities and manually assigning them to time slots:
+accept(): (draft: String)
 
-```typescript
-const planner = new DayPlanner();
-const breakfast = planner.addActivity('Breakfast', 1); // 30 minutes
-planner.assignActivity(breakfast, 14); // 7:00 AM
-```
+requires question to exist and draft status is not accepted
+effects set draft status to accepted
 
-### 2. LLM-Assisted Scheduling
-Shows AI-powered scheduling with hardwired preferences:
+edit(llm: LLM, newDraft: String):
 
-```typescript
-const planner = new DayPlanner();
-planner.addActivity('Morning Jog', 2);
-planner.addActivity('Math Homework', 4);
-await llm.requestAssignmentsFromLLM(planner);
-```
+requires draft status is not accepted, draft already exists 
+effects replaces current draft with newDraft, adds to feedback history 
 
-### 3. Mixed Scheduling
-Combines manual assignments with AI assistance for remaining activities.
+async feedback(llm: LLM, feedback: string): (draft: String)
 
-## Sample Output
+requires feedback to be a valid feedback for a draft, draft has not yet been accepted
+effects adds to feedback history, generate new text with updated content based off all feedback so far and current files
 
 ```
-📅 Daily Schedule
-==================
-7:00 AM - Breakfast (30 min)
-8:00 AM - Morning Workout (1 hours)
-10:00 AM - Study Session (1.5 hours)
-1:00 PM - Lunch (30 min)
-3:00 PM - Team Meeting (1 hours)
-7:00 PM - Dinner (30 min)
-9:00 PM - Evening Reading (1 hours)
 
-📋 Unassigned Activities
-========================
-All activities are assigned!
+## UI sketches
+
+![Homepage](./images/homepage.png)
+
+This is the homepage. Users can input their question (ie write a cover letter, tell me why I would be a good fit for this role) as well as upload/edit files (not covered in this concept).
+
+![Generation](./images/generation.png)
+
+This is the generation page. Users see their question at the top of the screen, and the LLM generates a response to their prompt. The users can directly edit the response (which is sent as 'feedback' to the LLM for future edits), or make generic feedback requests ('please include that I have worked for Amazon'). The user can also upload additional files, or remove files that the LLM is referencing to generate the draft. Once the user is satisfied, they can end the session by accepting the response, which then redirects them to a download page for the generated text. 
+
+## Validators
+
+Issue 1: When the user makes edits to their draft, the LLM creates a list of actionable feedback to keep in mind for future drafts. The LLM must output it in the format of a list of python strings
+
+[Code that validates the output is parseable feedback](./generator.ts#L86-95)
+
+Issue 2: Malformed question input - the question is not actually a question. We want to ensure that the user cannot input "43" and try to make the LLM generate something, we want the user to ask something job-related.
+
+[Code that validates the input is a valid question](./generator.ts#L60-62)
+
+Issue 3: Malformed feedback input - the feedback is not actually an actionable and confuses the LLM, ie another question or nonsense. If we do not check this before adding to our feedback, we could end up with bogus feedback.
+
+[Code that validates the input is a valid feedback](./generator.ts#L64-69)
+
+## Changes in prompts
+
+### Generate
+
+Start: 
+```
+${this.question}
 ```
 
-## Key Features
+It didn't provide a good response, and also gave a lot of fluff. I just wanted to try out using only to prompt to see how well it would do.
 
-- **Simple State Management**: Activities and assignments stored in memory
-- **Flexible Time System**: Half-hour slots from midnight (0-47)
-- **Query-Based Display**: Schedule generated on-demand, not stored sorted
-- **AI Integration**: Hardwired preferences in LLM prompt (no external hints)
-- **Conflict Detection**: Prevents overlapping activities
-- **Clean Architecture**: First principles implementation with no legacy code
+Middle:
+```
+You are an expert job application writer. Use the following files as context:\n` +
+            files.map(f => `File: ${f.name}\nContent: ${f.content}\n`).join('') +
+            `\nBased on this user's question, "${this.question}", draft a comprehensive response.
+            `;
+```
 
-## LLM Preferences (Hardwired)
+It was outputting potential improvements, which I didn't quite like. It also would output an additional argument about how good of a job it did, and why it wrote a good cover letter (or did a good job of responding to the prompt), which I didn't  like.
 
-The AI uses these built-in preferences:
-- Exercise activities: Morning (6:00 AM - 10:00 AM)
-- Study/Classes: Focused hours (9:00 AM - 5:00 PM)
-- Meals: Regular intervals (breakfast 7-9 AM, lunch 12-1 PM, dinner 6-8 PM)
-- Social/Relaxation: Evenings (6:00 PM - 10:00 PM)
-- Avoid: Demanding activities after 10:00 PM
+Final:
+```
+You are an expert job application writer. Use the following files as context:\n` +
+            files.map(f => `File: ${f.name}\nContent: ${f.content}\n`).join('') +
+            `\nUser question: "${this.question}".
+            Instructions: Respond directly and only with the answer to the question. Do NOT include greetings, explanations, or extra commentary. Output only the requested text.
+            `;
+```
 
-## Troubleshooting
+This one does pretty well, and seems that it only outputs the text that the user wants instead of additional fluff. 
 
-### "Could not load config.json"
-- Ensure `config.json` exists with your API key
-- Check JSON format is correct
+### Edit 
 
-### "Error calling Gemini API"
-- Verify API key is correct
-- Check internet connection
-- Ensure API access is enabled in Google AI Studio
+Start:
 
-### Build Issues
-- Use `npm run build` to compile TypeScript
-- Check that all dependencies are installed with `npm install`
+```
+You are an assistant that analyzes revisions to writing.  
+You will be given two drafts of text: Draft A (original) and Draft B (revised).  
 
-## Next Steps
+Your task:
+1. Compare Draft A and Draft B.  
+2. Identify what types of changes were made (e.g., tone, clarity, structure, word choice, level of detail, formatting, conciseness).  
+3. Infer the possible feedback or instruction that caused those changes.  
+4. Summarize the feedback as **general writing guidelines** that can be applied to future drafts.  
 
-Try extending the DayPlanner:
-- Add weekly scheduling
-- Implement activity categories
-- Add location information
-- Create a web interface
-- Add conflict resolution strategies
-- Implement recurring activities
+Be concise and actionable. Output in bullet points.  
 
-## Resources
+Example:  
+- If Draft A is casual and Draft B is more formal, the feedback might be: *"Write with a more professional tone."*  
+- If Draft A rambles and Draft B is shorter, the feedback might be: *"Be more concise and remove unnecessary detail."*  
 
-- [Google Generative AI Documentation](https://ai.google.dev/docs)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
+---
+
+Draft A:  
+{draftA}
+
+Draft B:  
+{draftB}
+
+Output:
+```
+
+This output stuff that was really hard to parse, and I struggled to add it to feedback. I realized I had to organize it in a way that could help it consistently parse.
+
+Middle:
+```
+You are an assistant that analyzes writing revisions.
+
+You will be given two drafts: Draft A (original) and Draft B (revised).
+
+Your task:
+1. Compare Draft A and Draft B.
+2. Infer the feedback that likely caused the changes.
+3. Return the feedback as a JSON array of short, actionable strings.
+
+---
+
+Draft A:
+[INSERT ORIGINAL DRAFT]
+
+Draft B:
+[INSERT REVISED DRAFT]
+
+Output:
+["Write with a more professional tone", "Be more concise"]
+```
+
+The output was sort of inconsistent and would sometimes include "json" and sometimes not, and sometimes it would output a little bit of fluff, which made parsing pretty difficult.
+
+Final:
+
+```
+You are an assistant that analyzes revisions to writing.  
+You will be given two drafts of text: Draft A (original) and Draft B (revised).  
+
+Your task:
+1. Compare Draft A and Draft B.  
+2. Identify what types of changes were made (e.g., tone, clarity, structure, word choice, level of detail, formatting, conciseness).  
+3. Infer the possible feedback or instruction that caused those changes.  
+4. Return the feedback as a Python list of short, actionable strings.  
+5. Output only the Python list—no explanations, no extra text.
+
+Example outputs:
+["Write with a more professional tone."]
+["Be more concise and remove unnecessary detail.", "Use active voice instead of passive voice."]
+
+---
+
+Draft A:
+[INSERT ORIGINAL DRAFT]
+
+Draft B:
+[INSERT REVISED DRAFT]
+
+Output:
+```
+
+So far it works, but my concern is that if I do a lot of feedback, the context window might get too large and it could forget. However, I am being frugal and I have not yet tested a lot of changes, but it so far seems fine.
+
+## Identifying poor input
+start: 
+```
+Determine if the following input is a valid ${item}. Respond with "Yes" or "No".\n\nInput: "${input}"\n\nAnswer:
+```
+
+This did REALLY poorly. In fact, it was trying to interpret '32' to mean something. 
+
+See below:
+
+```
+**Interpretation 3: The user wants to elaborate on a specific aspect that is implied by "32".**
+
+This is the most ambiguous interpretation. "32" could be a code for something specific to the user's process.
+
+**If you have any more context on what "32" might refer to, please provide it, and I can give you a more tailored revision!**
+
+**In summary, without more information, I've provided two potential revisions: one focusing on quantifying achievements (if "32" represents a number) and another focusing on slight conciseness.** Please let me know if you can clarify the feedback!
+```
+
+So I will be editing it to include more context, so that it is not a zero-shot prompt..
+
+Middle:
+
+```
+
+You are a strict classifier.
+
+Determine whether the input is a valid request for feedback on a piece of writing.
+
+Classify as "Yes" only if ALL of the following are true:
+1. The message explicitly asks for **feedback, critique, or evaluation** of a piece of writing, such as a draft, essay, paragraph, or response.
+2. The message includes or clearly references the **text to be reviewed** (e.g., “here’s my draft,” “can you review this,” followed by text).
+3. The message refers to **improvement or evaluation** (e.g., “how can I make this better,” “what do you think,” “give me feedback”).
+
+If any of these conditions are missing — for example, if the message just asks for writing help, general advice, or produces new writing — classify as "No".
+
+Examples of "Yes":
+- "Can you give me feedback on my cover letter draft below?"
+- "Here's my essay — what do you think of it?"
+- "Review this paragraph and tell me how to make it better."
+
+Examples of "No":
+- "Write me a cover letter."
+- "Summarize this text."
+- "Explain this sentence."
+- "Hi"
+- "43"
+
+Respond with exactly one word: Yes or No.
+
+Input: "${input}"
+
+Answer:
+```
+
+It does a better job now, it can identify if something is a poor question/feedback now. However, for the feedback, it output this:
+
+```
+ I need more information to revise the draft. Please provide:
+
+*   **The current draft of the text.**
+*   **What the "32." refers to.** Is it a page number, a section number, a comment number, or something else?
+*   **The specific feedback you want me to address related to "32."**
+
+Once you provide these details, I can help you revise the draft.
+```
+
+I want it to avoid putting any conversation or fluff inside the output, so I want to revise the prompt to do this. It also is too strict at times, so I need to fix that. For example, saying "make it more concise" is rejected..
+
+Second Iteration
+
+```
+You are a strict text classifier.
+
+Determine if the input is a message asking for help writing or improving materials related to a job or internship application.
+
+Classify as "Yes" if the message:
+- Asks for writing or editing help with any job application–related content, such as:
+  - cover letters
+  - "why fit" or application question answers
+  - LinkedIn summaries or professional bios
+  - personal statements
+  - other professional profile or application materials
+- May mention a company or position (e.g., "cover letter for Google SWE") OR clearly refers to professional/job application writing (e.g., "Draft a LinkedIn summary").
+
+Classify as "No" if the message:
+- Is unrelated to job or professional applications.
+- Asks a general question, performs math, or contains only numbers, greetings, or casual conversation.
+
+Examples of "Yes":
+- "Write a cover letter for a software engineering internship at Google."
+- "Why would I be a good fit for this role at Meta?"
+- "Draft a LinkedIn summary."
+- "Help me write a personal statement for a data analyst position."
+
+Examples of "No":
+- "Write me a story."
+- "What is 1+1?"
+- "43"
+- "Hello."
+- "Explain recursion."
+
+Respond with exactly one word: Yes or No.  
+Do not include any explanations or reasoning.
+
+Input: "${input}"
+
+Answer:
+```
+
+It is still classifying too strictly. Will also work on fixing my regeneration prompt.
+It is really hard to get it on the right balance between strict and not strict, and I'm still running into issues where it is incorrectly classifying what is a good question and what isn't. For example, it still rejects the linkedin summary, but now it's accepting non-specific material.
+
+Final iteration before i give up 
+
+```
+You are a strict text classifier.
+
+Determine if the input is a message asking for help writing or improving materials related to a job, internship, or professional application.
+
+Classify as "Yes" if the message:
+
+Asks for writing or editing help with any professional application or profile content, such as:
+
+cover letters
+
+answers to “why fit” or other application questions
+
+personal statements
+
+LinkedIn summaries, professional bios, or resumes
+
+other materials for jobs, internships, or professional profiles
+
+Mentions a company, position, or platform (e.g., LinkedIn) OR clearly refers to professional writing (e.g., “Draft a LinkedIn summary,” “Write my bio for work”)
+
+Classify as "No" if the message:
+
+Is unrelated to job or professional applications
+
+Asks a general question, performs math, or contains only numbers, greetings, or casual conversation
+
+Respond with exactly one word: Yes or No
+Do not include any explanations or reasoning.
+
+Input: "${input}"
+Answer:
+```
+
+Now it is too general, unfortunately. I think it is very difficult to reach a happy medium, but for user experience, I've concluded a better experience is hallucinatinos over it refusing to answer a general job application related question.

@@ -8,6 +8,7 @@ import { GeminiLLM } from './gemini-llm';
 export interface Activity {
     title: string;
     duration: number; // in half-hour increments
+    importanceWeight?: number; // not important 0 - 5 very important
 }
 
 // An assignment of an activity to a time slot
@@ -20,10 +21,11 @@ export class DayPlanner {
     private activities: Activity[] = [];
     private assignments: Assignment[] = [];
 
-    addActivity(title: string, duration: number): Activity {
+    addActivity(title: string, duration: number, importanceWeight?: number): Activity {
         const activity: Activity = {
             title,
-            duration
+            duration,
+            importanceWeight: importanceWeight 
         };
         this.activities.push(activity);
         return activity;
@@ -35,6 +37,10 @@ export class DayPlanner {
         
         // Remove the activity
         this.activities = this.activities.filter(a => a !== activity);
+    }
+
+    getImportantActivites(): Assignment[] {
+        return this.assignments.filter(assignment => assignment.activity.importanceWeight === 5);
     }
 
     assignActivity(activity: Activity, startTime: number): void {
@@ -107,7 +113,8 @@ export class DayPlanner {
             "3. Avoid conflicts - don't overlap activities",
             "4. Consider the duration of each activity when scheduling",
             "5. Use appropriate time slots based on the preferences above",
-            "6. Never assign an activity to more than one time slot"
+            "6. Never assign an activity to more than one time slot",
+            "7. If an activity does not have an importanceWeight, guess a value from 0 to 5 based on the duration and start time",
         ];
 
         if (existingAssignments.length > 0) {
